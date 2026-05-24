@@ -6,6 +6,10 @@
           {
             "type": "command",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/hooks/notify.ps1\" -Title \"Claude Code 完了\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/notify.sh\" \"Claude Code 完了\""
           }
         ]
       }
@@ -16,6 +20,10 @@
           {
             "type": "command",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/hooks/notify.ps1\" -Title \"Claude Code 権限確認\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/notify.sh\" \"Claude Code 権限確認\""
           }
         ]
       }

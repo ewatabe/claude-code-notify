@@ -22,6 +22,39 @@ In Claude Code:
 
 New sessions will get toast notifications.
 
+### Remote setups (VS Code Remote-SSH, WSL2)
+
+If Claude Code runs on a remote Linux host (EC2 etc.) via VS Code Remote-SSH, or inside WSL2, the hook can't invoke PowerShell directly. Instead, run the Windows-side **listener** and forward the port over SSH.
+
+**1. On the Windows client — start the listener** (do this once per session, or set up auto-start):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\marketplaces\ewatabe-claude-code-notify\plugins\claude-code-notify\hooks\listener.ps1"
+```
+
+(adjust the path to wherever Claude Code installed the plugin on the client; check via `/plugin` UI)
+
+To auto-start on logon, register a scheduled task:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "<path-to-listener.ps1>"'
+$trigger = New-ScheduledTaskTrigger -AtLogon
+Register-ScheduledTask -TaskName 'claude-code-notify-listener' -Action $action -Trigger $trigger
+```
+
+**2. Configure SSH port forward** — add to `~/.ssh/config`:
+
+```
+Host my-ec2
+    HostName ...
+    User ubuntu
+    RemoteForward 7474 localhost:7474
+```
+
+Now when Claude Code on the remote fires a hook, `notify.sh` POSTs to `localhost:7474` (which SSH forwards back to your Windows client), and `listener.ps1` displays the Windows toast.
+
+To override host/port, set `CLAUDE_NOTIFY_HOST` and `CLAUDE_NOTIFY_PORT` env vars on the remote.
+
 ## What you see
 
 | Hook event | Title |

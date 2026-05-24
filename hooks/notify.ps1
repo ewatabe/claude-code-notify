@@ -69,31 +69,28 @@ if ($body.Length -gt 120) { $body = $body.Substring(0, 117) + "..." }
 $finalTitle = $Title
 if ($project) { $finalTitle = "$Title [$project]" }
 
-$iconPath = Join-Path $PSScriptRoot "notify-icon.png"
+$iconPath = Join-Path $PSScriptRoot "claude-code-bell-256.png"
 $focusScript = Join-Path $PSScriptRoot "focus.ps1"
 
 $AppId = "Anthropic.ClaudeCode.Notify"
 try {
     $regPath = "HKCU:\Software\Classes\AppUserModelId\$AppId"
-    if (-not (Test-Path $regPath)) {
-        New-Item -Path $regPath -Force | Out-Null
-        Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Claude Code"
-        if (Test-Path $iconPath) {
-            Set-ItemProperty -Path $regPath -Name "IconUri" -Value $iconPath
-        }
+    if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+    Set-ItemProperty -Path $regPath -Name "DisplayName" -Value "Claude Code"
+    if (Test-Path $iconPath) {
+        Set-ItemProperty -Path $regPath -Name "IconUri" -Value $iconPath
     }
 } catch {}
 
 try {
     $protoPath = "HKCU:\Software\Classes\claudecode-focus"
-    if (-not (Test-Path $protoPath)) {
-        New-Item -Path $protoPath -Force | Out-Null
-        Set-ItemProperty -Path $protoPath -Name "(default)" -Value "URL:Claude Code Focus"
-        Set-ItemProperty -Path $protoPath -Name "URL Protocol" -Value ""
-        New-Item -Path "$protoPath\shell\open\command" -Force | Out-Null
-        $cmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$focusScript`" `"%1`""
-        Set-ItemProperty -Path "$protoPath\shell\open\command" -Name "(default)" -Value $cmd
-    }
+    if (-not (Test-Path $protoPath)) { New-Item -Path $protoPath -Force | Out-Null }
+    Set-ItemProperty -Path $protoPath -Name "(default)" -Value "URL:Claude Code Focus"
+    Set-ItemProperty -Path $protoPath -Name "URL Protocol" -Value ""
+    $cmdPath = "$protoPath\shell\open\command"
+    if (-not (Test-Path $cmdPath)) { New-Item -Path $cmdPath -Force | Out-Null }
+    $cmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$focusScript`" `"%1`""
+    Set-ItemProperty -Path $cmdPath -Name "(default)" -Value $cmd
 } catch {}
 
 try {

@@ -4,7 +4,7 @@ Windows toast notifications for [Claude Code](https://code.claude.com/) — fire
 
 Zero dependencies — uses raw WinRT toast APIs directly (no BurntToast / no PSGallery module required).
 
-![icon](hooks/notify-icon.png)
+![icon](hooks/claude-code-bell-256.png)
 
 ## Requirements
 
@@ -57,7 +57,7 @@ Fork and edit `hooks/notify.ps1`. The script reads the hook payload from stdin (
 3. `tool_name` + `tool_input` — PermissionRequest event
 4. Falls back to parsing `transcript_path`
 
-Swap `hooks/notify-icon.png` for your own 364×364 PNG.
+Swap `hooks/claude-code-bell-256.png` for your own square PNG (256×256 or 364×364 recommended).
 
 ## Prior art
 

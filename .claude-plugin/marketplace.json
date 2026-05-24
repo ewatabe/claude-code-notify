@@ -9,11 +9,7 @@
       "name": "claude-code-notify",
       "description": "Windows toast notifications for Claude Code hooks",
       "version": "0.1.0",
-      "source": {
-        "source": "git",
-        "url": "https://github.com/ewatabe/claude-code-notify",
-        "ref": "main"
-      }
+      "source": "./"
     }
   ]
 }

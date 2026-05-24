@@ -34,6 +34,14 @@ The body shows:
 - **Stop**: a preview of Claude's last response
 - **PermissionRequest**: `<tool>: <key argument>` — e.g. `Edit: C:\path\to\file.ps1`, `Bash: git status`, `AskUserQuestion: <question text>`
 
+## Click-to-focus
+
+Clicking the toast brings the corresponding VS Code window to the foreground. The plugin registers a custom protocol `claudecode-focus:` under `HKCU\Software\Classes\` on first run (user-scope only — no admin required). On click, `hooks/focus.ps1` enumerates top-level windows, finds the one whose title contains the project name, and calls `SetForegroundWindow`.
+
+Limitations:
+- Works for VS Code (window title contains the open folder name). Other terminals (Windows Terminal, etc.) may not match by title.
+- If the project name is generic (e.g. `src`, `code`), it may match an unrelated window.
+
 ## Known limitations
 
 - **`Notification` event is NOT registered.** It's redundant with `PermissionRequest` for the `AskUserQuestion` flow and would cause double toasts. If you want idle / waiting-state notifications, see [dimokol/claude-notifications](https://github.com/dimokol/claude-notifications) for a robust dedup approach.
@@ -67,10 +75,11 @@ This plugin draws ideas from several existing Claude Code notification projects:
 /plugin uninstall claude-code-notify
 ```
 
-To also remove the registered AppUserModelId:
+To also remove the registry entries created by the plugin:
 
 ```powershell
 Remove-Item "HKCU:\Software\Classes\AppUserModelId\Anthropic.ClaudeCode.Notify" -Recurse
+Remove-Item "HKCU:\Software\Classes\claudecode-focus" -Recurse
 ```
 
 ## License

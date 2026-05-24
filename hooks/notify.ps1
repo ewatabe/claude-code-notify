@@ -70,6 +70,7 @@ $finalTitle = $Title
 if ($project) { $finalTitle = "$Title [$project]" }
 
 $iconPath = Join-Path $PSScriptRoot "notify-icon.png"
+$focusScript = Join-Path $PSScriptRoot "focus.ps1"
 
 $AppId = "Anthropic.ClaudeCode.Notify"
 try {
@@ -84,6 +85,18 @@ try {
 } catch {}
 
 try {
+    $protoPath = "HKCU:\Software\Classes\claudecode-focus"
+    if (-not (Test-Path $protoPath)) {
+        New-Item -Path $protoPath -Force | Out-Null
+        Set-ItemProperty -Path $protoPath -Name "(default)" -Value "URL:Claude Code Focus"
+        Set-ItemProperty -Path $protoPath -Name "URL Protocol" -Value ""
+        New-Item -Path "$protoPath\shell\open\command" -Force | Out-Null
+        $cmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$focusScript`" `"%1`""
+        Set-ItemProperty -Path "$protoPath\shell\open\command" -Name "(default)" -Value $cmd
+    }
+} catch {}
+
+try {
     $null = [Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]
     $null = [Windows.UI.Notifications.ToastNotification,Windows.UI.Notifications,ContentType=WindowsRuntime]
     $null = [Windows.Data.Xml.Dom.XmlDocument,Windows.Data.Xml.Dom.XmlDocument,ContentType=WindowsRuntime]
@@ -91,13 +104,20 @@ try {
     $titleEsc = [System.Security.SecurityElement]::Escape($finalTitle)
     $bodyEsc = [System.Security.SecurityElement]::Escape($body)
 
+    $launchAttr = ""
+    if ($project) {
+        $launchArg = [System.Uri]::EscapeDataString($project)
+        $launchUrl = [System.Security.SecurityElement]::Escape("claudecode-focus:$launchArg")
+        $launchAttr = " launch=`"$launchUrl`" activationType=`"protocol`""
+    }
+
     $imageNode = ""
     if (Test-Path $iconPath) {
         $iconUri = "file:///" + $iconPath.Replace('\', '/')
         $imageNode = "<image placement=`"appLogoOverride`" hint-crop=`"default`" src=`"$iconUri`"/>"
     }
 
-    $xmlString = "<toast><visual><binding template=`"ToastGeneric`"><text>$titleEsc</text><text>$bodyEsc</text>$imageNode</binding></visual></toast>"
+    $xmlString = "<toast$launchAttr><visual><binding template=`"ToastGeneric`"><text>$titleEsc</text><text>$bodyEsc</text>$imageNode</binding></visual></toast>"
 
     $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
     $xml.LoadXml($xmlString)

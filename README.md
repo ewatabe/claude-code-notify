@@ -1,6 +1,10 @@
 # claude-code-notify
 
-Windows toast notifications for [Claude Code](https://code.claude.com/) — fires on `Stop` and `PermissionRequest` hook events. Notifications are automatically suppressed when the corresponding terminal / VS Code window is focused, so you only get pinged when you've alt-tabbed away.
+Windows toast notifications for [Claude Code](https://code.claude.com/) — fires on `Stop` and `PermissionRequest` hook events. Clicking the toast brings the corresponding VS Code window to the foreground.
+
+Works for:
+- **Windows native** — Claude Code running directly on Windows (PowerShell)
+- **Remote setups** — Claude Code on Linux / WSL2 / EC2 via SSH, with a small listener on the Windows side relaying notifications over an SSH port forward
 
 Zero dependencies — uses raw WinRT toast APIs directly (no BurntToast / no PSGallery module required).
 
@@ -22,38 +26,92 @@ In Claude Code:
 
 New sessions will get toast notifications.
 
-### Remote setups (VS Code Remote-SSH, WSL2)
+### Remote setups (VS Code Remote-SSH → Linux / WSL2 / EC2)
 
-If Claude Code runs on a remote Linux host (EC2 etc.) via VS Code Remote-SSH, or inside WSL2, the hook can't invoke PowerShell directly. Instead, run the Windows-side **listener** and forward the port over SSH.
+When Claude Code runs on a remote Linux host, the hook can't invoke PowerShell directly. Instead, **run the listener on the Windows client and forward port 7474 over SSH back to it**.
 
-**1. On the Windows client — start the listener** (do this once per session, or set up auto-start):
+#### 1. Install the plugin on the remote (where Claude Code runs)
+
+```
+/plugin marketplace add ewatabe/claude-code-notify
+/plugin install claude-code-notify@claude-code-notify
+```
+
+#### 2. On the Windows client — start `listener.ps1`
+
+Once per session:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\marketplaces\ewatabe-claude-code-notify\plugins\claude-code-notify\hooks\listener.ps1"
 ```
 
-(adjust the path to wherever Claude Code installed the plugin on the client; check via `/plugin` UI)
+(adjust the path; check via `/plugin` UI for the exact install location)
 
-To auto-start on logon, register a scheduled task:
+Auto-start at logon:
 
 ```powershell
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "<path-to-listener.ps1>"'
+$listenerPath = "<path-to-listener.ps1>"
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+  -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$listenerPath`""
 $trigger = New-ScheduledTaskTrigger -AtLogon
 Register-ScheduledTask -TaskName 'claude-code-notify-listener' -Action $action -Trigger $trigger
 ```
 
-**2. Configure SSH port forward** — add to `~/.ssh/config`:
+#### 3. SSH port forward
+
+Add to the Windows client's `~/.ssh/config`:
 
 ```
-Host my-ec2
-    HostName ...
-    User ubuntu
+Host my-remote
+    HostName <ip-or-name>
+    User <remote-user>
     RemoteForward 7474 localhost:7474
 ```
 
-Now when Claude Code on the remote fires a hook, `notify.sh` POSTs to `localhost:7474` (which SSH forwards back to your Windows client), and `listener.ps1` displays the Windows toast.
+Works the same over Tailscale — just use the Tailscale MagicDNS name as `HostName`.
 
-To override host/port, set `CLAUDE_NOTIFY_HOST` and `CLAUDE_NOTIFY_PORT` env vars on the remote.
+#### 4. Verify
+
+From the remote shell where Claude Code runs:
+
+```bash
+curl -v http://localhost:7474/
+# Expect: HTTP/1.1 404, Server: Microsoft-HTTPAPI/2.0  → listener reachable ✓
+# Or:     curl: Connection refused                       → forward not reaching this shell ✗
+```
+
+End-to-end toast test:
+
+```bash
+echo '{"last_assistant_message":"テスト","cwd":"/home/me/test"}' | \
+  curl -s -X POST http://localhost:7474/notify \
+    -H "X-Claude-Title: テスト" \
+    -H "Content-Type: application/json" \
+    --data-binary @-
+```
+
+#### WSL2-specific note
+
+Two sub-cases:
+
+- **SSH server runs inside WSL2** (you SSH directly into WSL2): `localhost:7474` in WSL2 = the forwarded port. Works out of the box.
+- **SSH server runs on the Windows host** (you SSH to Windows, then `wsl` into WSL2): the forwarded port lives on the Windows host, not on WSL2's `localhost`. Easiest fix is to enable WSL2 **mirrored networking** so `localhost` is shared. Add to `%USERPROFILE%\.wslconfig` on the remote machine:
+
+  ```ini
+  [wsl2]
+  networkingMode=mirrored
+  ```
+
+  Then `wsl --shutdown` and restart WSL2.
+
+#### Overriding host/port
+
+Set on the remote (e.g. in shell rc):
+
+```bash
+export CLAUDE_NOTIFY_HOST=localhost
+export CLAUDE_NOTIFY_PORT=7474
+```
 
 ## What you see
 

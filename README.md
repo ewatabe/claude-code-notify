@@ -42,7 +42,7 @@ When Claude Code runs on a remote Linux host, the hook can't invoke PowerShell d
 Once per session:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\marketplaces\ewatabe-claude-code-notify\plugins\claude-code-notify\hooks\listener.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\marketplaces\claude-code-notify\hooks\listener.ps1"
 ```
 
 (adjust the path; check via `/plugin` UI for the exact install location)

@@ -47,14 +47,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\pl
 
 (adjust the path; check via `/plugin` UI for the exact install location)
 
-Auto-start at logon:
+Auto-start at logon — run the helper script (no admin required; creates a Startup folder shortcut):
 
 ```powershell
-$listenerPath = "<path-to-listener.ps1>"
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-  -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$listenerPath`""
-$trigger = New-ScheduledTaskTrigger -AtLogon
-Register-ScheduledTask -TaskName 'claude-code-notify-listener' -Action $action -Trigger $trigger
+& "$env:USERPROFILE\.claude\plugins\marketplaces\claude-code-notify\tools\install-listener.ps1"
+```
+
+To remove the auto-start later:
+
+```powershell
+& "$env:USERPROFILE\.claude\plugins\marketplaces\claude-code-notify\tools\install-listener.ps1" -Remove
 ```
 
 #### 3. SSH port forward

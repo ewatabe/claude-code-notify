@@ -1,19 +1,16 @@
 # claude-code-notify
 
-Windows toast notifications for [Claude Code](https://code.claude.com/) — fires on `Stop` and `PermissionRequest` hook events. Clicking the toast brings the corresponding VS Code window to the foreground.
+<img src="hooks/claude-code-bell-256.png" width="96" align="right" alt="">
 
-Works for:
-- **Windows native** — Claude Code running directly on Windows (PowerShell)
-- **Remote setups** — Claude Code on Linux / WSL2 / EC2 via SSH, with a small listener on the Windows side relaying notifications over an SSH port forward
+Windows toast notifications for [Claude Code](https://code.claude.com/). Get a desktop alert when Claude finishes a task or needs your input — whether Claude Code runs on your Windows machine **or on a remote Linux host** (EC2 / WSL2 / any SSH target).
 
-Zero dependencies — uses raw WinRT toast APIs directly (no BurntToast / no PSGallery module required).
+## Highlights
 
-![icon](hooks/claude-code-bell-256.png)
-
-## Requirements
-
-- Windows 10 / 11
-- Windows PowerShell 5.1 (preinstalled) or PowerShell 7+
+- **Zero dependencies.** Uses raw WinRT toast APIs directly — no BurntToast, no PSGallery module.
+- **Remote-friendly.** Ships with a tiny HTTP listener so remote Linux hooks can light up Windows toasts via an SSH port forward.
+- **Click-to-focus.** Clicking the toast brings the matching VS Code window to the front.
+- **Contextual.** Title shows the project name; body shows a preview of Claude's last response (or the tool being requested).
+- **UTF-8 throughout.** Toast body survives Unicode end-to-end (Japanese, emoji, etc.).
 
 ## Install
 
@@ -24,145 +21,85 @@ In Claude Code:
 /plugin install claude-code-notify@claude-code-notify
 ```
 
-New sessions will get toast notifications.
+That's it for the Windows-native case. New sessions get toast notifications automatically.
 
-### Remote setups (VS Code Remote-SSH → Linux / WSL2 / EC2)
+## Remote setups (Linux / WSL2 / EC2 over SSH)
 
-When Claude Code runs on a remote Linux host, the hook can't invoke PowerShell directly. Instead, **run the listener on the Windows client and forward port 7474 over SSH back to it**.
+When Claude Code runs on a remote host, PowerShell isn't available there — the plugin POSTs to a listener on your Windows client, tunneled back over SSH.
 
-#### 1. Install the plugin on the remote (where Claude Code runs)
+**1. On the remote** — install the plugin (same one-liner as above).
 
-```
-/plugin marketplace add ewatabe/claude-code-notify
-/plugin install claude-code-notify@claude-code-notify
-```
-
-#### 2. On the Windows client — start `listener.ps1`
-
-Once per session:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\marketplaces\claude-code-notify\hooks\listener.ps1"
-```
-
-(adjust the path; check via `/plugin` UI for the exact install location)
-
-Auto-start at logon — run the helper script (no admin required; creates a Startup folder shortcut):
+**2. On the Windows client** — set the listener to auto-start at logon:
 
 ```powershell
 & "$env:USERPROFILE\.claude\plugins\marketplaces\claude-code-notify\tools\install-listener.ps1"
 ```
 
-To remove the auto-start later:
+(No admin required. Creates a shortcut in the Startup folder. Use `-Remove` later to undo.)
+
+To start it immediately without rebooting:
 
 ```powershell
-& "$env:USERPROFILE\.claude\plugins\marketplaces\claude-code-notify\tools\install-listener.ps1" -Remove
+Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+  '-NoProfile','-ExecutionPolicy','Bypass','-File',
+  "$env:USERPROFILE\.claude\plugins\marketplaces\claude-code-notify\hooks\listener.ps1"
+)
 ```
 
-#### 3. SSH port forward
-
-Add to the Windows client's `~/.ssh/config`:
+**3. SSH port forward** — add to `~/.ssh/config` on the Windows client:
 
 ```
 Host my-remote
-    HostName <ip-or-name>
+    HostName <host-or-tailscale-name>
     User <remote-user>
     RemoteForward 7474 localhost:7474
 ```
 
-Works the same over Tailscale — just use the Tailscale MagicDNS name as `HostName`.
-
-#### 4. Verify
-
-From the remote shell where Claude Code runs:
+**4. Verify** — from the remote shell:
 
 ```bash
 curl -v http://localhost:7474/
-# Expect: HTTP/1.1 404, Server: Microsoft-HTTPAPI/2.0  → listener reachable ✓
-# Or:     curl: Connection refused                       → forward not reaching this shell ✗
+# HTTP/1.1 404 from Microsoft-HTTPAPI/2.0 → listener reachable
 ```
 
-End-to-end toast test:
+<details>
+<summary><b>WSL2 note</b> — when SSH'ing to the Windows host and using <code>wsl</code> from there</summary>
 
-```bash
-echo '{"last_assistant_message":"テスト","cwd":"/home/me/test"}' | \
-  curl -s -X POST http://localhost:7474/notify \
-    -H "X-Claude-Title: テスト" \
-    -H "Content-Type: application/json" \
-    --data-binary @-
+The forwarded port lives on the Windows host, not on WSL2's `localhost`. Enable mirrored networking on the remote so `localhost` is shared:
+
+```ini
+# %USERPROFILE%\.wslconfig
+[wsl2]
+networkingMode=mirrored
 ```
 
-#### WSL2-specific note
+Then `wsl --shutdown` and restart. (Not needed if you SSH directly into WSL2.)
 
-Two sub-cases:
-
-- **SSH server runs inside WSL2** (you SSH directly into WSL2): `localhost:7474` in WSL2 = the forwarded port. Works out of the box.
-- **SSH server runs on the Windows host** (you SSH to Windows, then `wsl` into WSL2): the forwarded port lives on the Windows host, not on WSL2's `localhost`. Easiest fix is to enable WSL2 **mirrored networking** so `localhost` is shared. Add to `%USERPROFILE%\.wslconfig` on the remote machine:
-
-  ```ini
-  [wsl2]
-  networkingMode=mirrored
-  ```
-
-  Then `wsl --shutdown` and restart WSL2.
-
-#### Overriding host/port
-
-Set on the remote (e.g. in shell rc):
-
-```bash
-export CLAUDE_NOTIFY_HOST=localhost
-export CLAUDE_NOTIFY_PORT=7474
-```
+</details>
 
 ## What you see
 
-| Hook event | Title |
+| Hook event | Toast title |
 |---|---|
 | `Stop` | `Claude Code: Done [project]` |
-| `PermissionRequest` (normal tools) | `Claude Code: Permission [project]` |
+| `PermissionRequest` | `Claude Code: Permission [project]` |
 | `PermissionRequest` (AskUserQuestion) | `Claude Code: Question [project]` |
 
-Titles are ASCII-only because HTTP headers (used to pass the title across the SSH-forwarded listener) cannot reliably carry non-ASCII bytes. The toast **body** is UTF-8 throughout, so Japanese prompts/responses display correctly.
+The body shows a preview of the assistant's response (Stop) or `<tool>: <key argument>` for PermissionRequest (e.g. `Edit: src/foo.ts`, `Bash: git status`, `AskUserQuestion: <question text>`).
 
-The body shows:
-- **Stop**: a preview of Claude's last response
-- **PermissionRequest**: `<tool>: <key argument>` — e.g. `Edit: C:\path\to\file.ps1`, `Bash: git status`, `AskUserQuestion: <question text>`
-
-## Click-to-focus
-
-Clicking the toast brings the corresponding VS Code window to the foreground. The plugin registers a custom protocol `claudecode-focus:` under `HKCU\Software\Classes\` on first run (user-scope only — no admin required). On click, `hooks/focus.ps1` enumerates top-level windows, finds the one whose title contains the project name, and calls `SetForegroundWindow`.
-
-Limitations:
-- Works for VS Code (window title contains the open folder name). Other terminals (Windows Terminal, etc.) may not match by title.
-- If the project name is generic (e.g. `src`, `code`), it may match an unrelated window.
-
-## Known limitations
-
-- **`Notification` event is NOT registered.** It's redundant with `PermissionRequest` for the `AskUserQuestion` flow and would cause double toasts. If you want idle / waiting-state notifications, see [dimokol/claude-notifications](https://github.com/dimokol/claude-notifications) for a robust dedup approach.
-- **VS Code Native UI gap** — `PermissionRequest` and `Notification` hooks do not fire under the VS Code Native UI (only the terminal UI). See [anthropics/claude-code#31285](https://github.com/anthropics/claude-code/issues/31285). `Stop` notifications still work.
-- **AppUserModelId is registered on first run** under `HKCU\Software\Classes\AppUserModelId\Anthropic.ClaudeCode.Notify` (user-scope only — no admin required).
+Titles are ASCII because HTTP headers can't safely carry non-ASCII bytes; the body is full UTF-8.
 
 ## Customizing
 
-Fork and edit `hooks/notify.ps1`. The script reads the hook payload from stdin (JSON) and prioritizes:
+- **Icon** — replace `hooks/claude-code-bell-256.png` with your own square PNG (256×256+).
+- **Titles** — edit the `-Title` arguments in `hooks/hooks.json`.
+- **Listener port** — set `CLAUDE_NOTIFY_PORT` / `CLAUDE_NOTIFY_HOST` env vars on the remote.
 
-1. `last_assistant_message` — Stop event
-2. `message` — Notification event
-3. `tool_name` + `tool_input` — PermissionRequest event
-4. Falls back to parsing `transcript_path`
+## Known limitations
 
-Swap `hooks/claude-code-bell-256.png` for your own square PNG (256×256 or 364×364 recommended).
-
-## Prior art
-
-This plugin draws ideas from several existing Claude Code notification projects:
-
-- [dimokol/claude-notifications](https://github.com/dimokol/claude-notifications) — atomic lockfile dedup, click-to-focus
-- [soulee-dev/claude-code-notify-powershell](https://github.com/soulee-dev/claude-code-notify-powershell) — zero-dep WinRT pattern
-- [claudes-world/cctoast-wsl](https://github.com/claudes-world/cctoast-wsl) — WSL → Windows toast
-- [777genius/claude-notifications-go](https://github.com/777genius/claude-notifications-go) — cross-platform Go implementation
-- [disler/claude-code-hooks-mastery](https://github.com/disler/claude-code-hooks-mastery) — reference for all 13 hook events
+- The `Notification` hook is intentionally not registered — it overlaps with `PermissionRequest` for `AskUserQuestion` and would double-toast. See [dimokol/claude-notifications](https://github.com/dimokol/claude-notifications) for a robust dedup approach if you need idle-state notifications.
+- `PermissionRequest` and `Notification` hooks don't fire under the VS Code Native UI — only the terminal UI ([anthropics/claude-code#31285](https://github.com/anthropics/claude-code/issues/31285)). `Stop` notifications still work everywhere.
+- Click-to-focus matches windows by title containing the project folder name; very generic names (`src`, `code`) may match unintended windows.
 
 ## Uninstall
 
@@ -170,12 +107,23 @@ This plugin draws ideas from several existing Claude Code notification projects:
 /plugin uninstall claude-code-notify
 ```
 
-To also remove the registry entries created by the plugin:
+Remove the listener auto-start and registry entries (optional):
 
 ```powershell
+& "$env:USERPROFILE\.claude\plugins\marketplaces\claude-code-notify\tools\install-listener.ps1" -Remove
 Remove-Item "HKCU:\Software\Classes\AppUserModelId\Anthropic.ClaudeCode.Notify" -Recurse
 Remove-Item "HKCU:\Software\Classes\claudecode-focus" -Recurse
 ```
+
+## Prior art
+
+Builds on ideas from existing Claude Code notification projects:
+
+- [dimokol/claude-notifications](https://github.com/dimokol/claude-notifications) — atomic dedup, click-to-focus
+- [soulee-dev/claude-code-notify-powershell](https://github.com/soulee-dev/claude-code-notify-powershell) — zero-dep WinRT pattern
+- [claudes-world/cctoast-wsl](https://github.com/claudes-world/cctoast-wsl) — WSL → Windows toast
+- [777genius/claude-notifications-go](https://github.com/777genius/claude-notifications-go) — cross-platform Go implementation
+- [disler/claude-code-hooks-mastery](https://github.com/disler/claude-code-hooks-mastery) — reference for all 13 hook events
 
 ## License
 

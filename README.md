@@ -119,9 +119,11 @@ export CLAUDE_NOTIFY_PORT=7474
 
 | Hook event | Title |
 |---|---|
-| `Stop` | `Claude Code 完了 [project]` |
-| `PermissionRequest` (normal tools) | `Claude Code 権限確認 [project]` |
-| `PermissionRequest` (AskUserQuestion) | `Claude Code 質問 [project]` |
+| `Stop` | `Claude Code: Done [project]` |
+| `PermissionRequest` (normal tools) | `Claude Code: Permission [project]` |
+| `PermissionRequest` (AskUserQuestion) | `Claude Code: Question [project]` |
+
+Titles are ASCII-only because HTTP headers (used to pass the title across the SSH-forwarded listener) cannot reliably carry non-ASCII bytes. The toast **body** is UTF-8 throughout, so Japanese prompts/responses display correctly.
 
 The body shows:
 - **Stop**: a preview of Claude's last response

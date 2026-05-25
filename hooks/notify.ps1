@@ -6,7 +6,7 @@ $data = $null
 try { $data = $input_json | ConvertFrom-Json } catch {}
 
 if ($data.tool_name -eq 'AskUserQuestion') {
-    $Title = $Title -replace '権限確認', '質問'
+    $Title = $Title -replace 'Permission', 'Question'
 }
 
 $body = ""

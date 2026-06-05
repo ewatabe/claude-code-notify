@@ -23,9 +23,21 @@ In Claude Code:
 
 That's it for the Windows-native case. New sessions get toast notifications automatically.
 
-## Remote setups (Linux / WSL2 / EC2 over SSH)
+## WSL2 (Claude Code in WSL on the same Windows machine)
 
-When Claude Code runs on a remote host, PowerShell isn't available there — the plugin POSTs to a listener on your Windows client, tunneled back over SSH.
+**Nothing to configure.** When the plugin runs inside WSL2 on the same PC as Windows, `notify.sh` calls `notify.ps1` directly through `powershell.exe` interop (`wslpath` translates the script path automatically). No listener, no SSH tunnel, and **no mirrored networking** needed — toasts work out of the box after install.
+
+> ⚠️ **Do not enable `networkingMode=mirrored` for this.** It is unnecessary here, and in corporate / VPN / proxy environments it commonly breaks WSL2's outbound connectivity — including Claude Code's own connection to the Anthropic API. The interop path above avoids `localhost` entirely, so mirrored mode buys you nothing.
+
+If toasts don't appear, verify interop reaches PowerShell:
+
+```bash
+grep -qiE 'microsoft|wsl' /proc/version && command -v powershell.exe && echo "interop OK"
+```
+
+## Remote setups (Linux / EC2 over SSH — no Windows interop)
+
+When Claude Code runs on a remote host with no Windows interop, PowerShell isn't reachable there — the plugin POSTs to a listener on your Windows client, tunneled back over SSH.
 
 **1. On the remote** — install the plugin (same one-liner as above).
 
@@ -63,17 +75,9 @@ curl -v http://localhost:7474/
 ```
 
 <details>
-<summary><b>WSL2 note</b> — when SSH'ing to the Windows host and using <code>wsl</code> from there</summary>
+<summary><b>WSL2 note</b></summary>
 
-The forwarded port lives on the Windows host, not on WSL2's `localhost`. Enable mirrored networking on the remote so `localhost` is shared:
-
-```ini
-# %USERPROFILE%\.wslconfig
-[wsl2]
-networkingMode=mirrored
-```
-
-Then `wsl --shutdown` and restart. (Not needed if you SSH directly into WSL2.)
+If Claude Code runs in WSL2 on the same machine as Windows, you don't need this SSH/listener setup at all — see [WSL2 (same Windows machine)](#wsl2-claude-code-in-wsl-on-the-same-windows-machine) above. The plugin uses `powershell.exe` interop directly. Avoid `networkingMode=mirrored`; it can break outbound connectivity in corporate/VPN environments.
 
 </details>
 
